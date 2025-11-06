@@ -1,0 +1,13 @@
+import { useEffect, useRef } from "react";
+
+type EffectCallback = () => void | (() => void | undefined);
+
+export function useEffectOnce(effect: EffectCallback) {
+  const hasRun = useRef(false);
+  useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
+    return effect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}

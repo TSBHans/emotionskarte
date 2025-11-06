@@ -1,0 +1,32 @@
+{
+  "name": "emotionskarte",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "clsx": "^2.1.0",
+    "maplibre-gl": "^3.3.1",
+    "next": "^14.1.0",
+    "papaparse": "^5.4.1",
+    "pmtiles": "^3.0.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwindcss": "^3.4.1"
+  },
+  "devDependencies": {
+    "@types/mapbox-gl": "^2.7.14",
+    "@types/node": "^20.11.24",
+    "@types/react": "^18.2.57",
+    "@types/react-dom": "^18.2.19",
+    "autoprefixer": "^10.4.17",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.1.0",
+    "postcss": "^8.4.31",
+    "typescript": "^5.3.3"
+  }
+}
