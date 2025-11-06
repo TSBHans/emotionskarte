@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.modal-scroll-lock {
+  overflow: hidden;
+}
+
+input[type="range"] {
+  accent-color: #19b3ab;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  background-color: #19b3ab;
+}
+
+input[type="range"]::-moz-range-thumb {
+  background-color: #19b3ab;
+}
