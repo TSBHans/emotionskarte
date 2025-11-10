@@ -3,63 +3,81 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import clsx from "clsx";
 import maplibregl, { Map as MapLibreMap, MapMouseEvent } from "maplibre-gl";
-import { registerProtocol } from "pmtiles";
+import { PMTiles, Protocol } from "pmtiles";
 import { useEffect, useMemo, useRef, useState } from "react";
 import createBaseMapStyle from "../lib/mapStyle";
 import {
+  COLOR_RAMP,
   H3_CENTROID_LAYER,
-  H3_POLYGON_LAYER,
-  H3_SOURCE_ID,
+  H3_HEX_LAYER,
+  H3_SOURCE_NAME,
   MAP_INITIAL_VIEW,
-  PMTILES_BASE_PATH,
-  PLACE_LABELS
+  PLACE_LABELS,
+  PMTILES_ARCHIVE,
+  PMTILES_ARCHIVE_PATH
 } from "../lib/constants";
-import type { Filters } from "../lib/aggregation";
 import type { HexAggregated, Metric, Place } from "../lib/types";
 
-let protocolRegistered = false;
 let featureStateWarningShown = false;
+let protocol: Protocol | null = null;
+
+function ensureProtocol() {
+  if (!protocol) {
+    protocol = new Protocol();
+    maplibregl.addProtocol("pmtiles", protocol.tile);
+  }
+  return protocol;
+}
+
+const COLOR_STOP_VALUES = COLOR_RAMP.flatMap(({ value, color }) => [value, color]);
 
 const COLOR_EXPRESSION: maplibregl.ExpressionSpecification = [
   "case",
   ["==", ["feature-state", "value"], null],
-  "#B0B0B0",
+  "rgba(176,176,176,0.3)",
   [
     "interpolate",
     ["linear"],
     ["feature-state", "value"],
-    1,
-    "#e6f7f7",
-    2,
-    "#9de1e0",
-    3,
-    "#52c7c4",
-    4,
-    "#19b3ab",
-    5,
-    "#009a92"
+    ...COLOR_STOP_VALUES
   ]
 ];
 
 const CIRCLE_RADIUS_EXPRESSION: maplibregl.ExpressionSpecification = [
-  "interpolate",
-  ["linear"],
-  ["coalesce", ["feature-state", "n"], 0],
-  0,
-  0,
-  5,
-  4,
-  10,
-  8,
-  25,
-  14,
-  50,
-  18
+  "case",
+  ["boolean", ["feature-state", "visible"], false],
+  [
+    "interpolate",
+    ["linear"],
+    ["coalesce", ["feature-state", "n"], 0],
+    0,
+    0,
+    5,
+    4,
+    10,
+    8,
+    25,
+    14,
+    50,
+    18
+  ],
+  0
+];
+
+const FILL_OPACITY_EXPRESSION: maplibregl.ExpressionSpecification = [
+  "coalesce",
+  ["feature-state", "opacity"],
+  0.1
+];
+
+const CIRCLE_OPACITY_EXPRESSION: maplibregl.ExpressionSpecification = [
+  "coalesce",
+  ["feature-state", "circleOpacity"],
+  0
 ];
 
 type MapViewProps = {
   mapData: Record<string, HexAggregated>;
-  filters: Filters;
   metric: Metric;
   activePlaces: Place[];
   loading: boolean;
@@ -73,23 +91,17 @@ type TooltipState = {
   info: HexAggregated;
 };
 
-export default function MapView({ mapData, filters, metric, activePlaces, loading, error }: MapViewProps) {
+export default function MapView({ mapData, metric, activePlaces, loading, error }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
-  const hoverTimeout = useRef<NodeJS.Timeout | null>(null);
+  const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dataRef = useRef(mapData);
+  const [mapLoaded, setMapLoaded] = useState(false);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [tileError, setTileError] = useState<string | null>(null);
 
   dataRef.current = mapData;
-
-  useEffect(() => {
-    if (!protocolRegistered) {
-      registerProtocol();
-      protocolRegistered = true;
-    }
-  }, []);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -101,60 +113,92 @@ export default function MapView({ mapData, filters, metric, activePlaces, loadin
       style: createBaseMapStyle(),
       center: MAP_INITIAL_VIEW.center,
       zoom: MAP_INITIAL_VIEW.zoom,
-      attributionControl: true
+      attributionControl: false
     });
 
     mapRef.current = map;
 
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
+    map.addControl(new maplibregl.AttributionControl({ compact: true }));
+
     map.on("load", () => {
-      map.addSource(H3_SOURCE_ID, {
-        type: "vector",
-        url: PMTILES_BASE_PATH
-      });
+      try {
+        const proto = ensureProtocol();
+        proto.add(new PMTiles(`/${PMTILES_ARCHIVE_PATH}`));
+      } catch (pmtilesError) {
+        console.error("PMTiles protocol error", pmtilesError);
+      }
 
-      map.addLayer({
-        id: "h3-fill",
-        type: "fill",
-        source: H3_SOURCE_ID,
-        "source-layer": H3_POLYGON_LAYER,
-        paint: {
-          "fill-color": COLOR_EXPRESSION,
-          "fill-opacity": getOpacityExpression(filters.hideNoData)
-        }
-      });
+      if (!map.getSource(H3_SOURCE_NAME)) {
+        map.addSource(H3_SOURCE_NAME, {
+          type: "vector",
+          url: PMTILES_ARCHIVE,
+          promoteId: {
+            [H3_HEX_LAYER]: "h3",
+            [H3_CENTROID_LAYER]: "h3"
+          }
+        });
+      }
 
-      map.addLayer({
-        id: "h3-outline",
-        type: "line",
-        source: H3_SOURCE_ID,
-        "source-layer": H3_POLYGON_LAYER,
-        paint: {
-          "line-color": "#222",
-          "line-opacity": 0.3,
-          "line-width": 0.5
-        }
-      });
+      if (!map.getLayer("h3-fill")) {
+        map.addLayer({
+          id: "h3-fill",
+          type: "fill",
+          source: H3_SOURCE_NAME,
+          "source-layer": H3_HEX_LAYER,
+          paint: {
+            "fill-color": COLOR_EXPRESSION,
+            "fill-opacity": FILL_OPACITY_EXPRESSION
+          }
+        });
+      }
 
-      map.addLayer({
-        id: "h3-centroids",
-        type: "circle",
-        source: H3_SOURCE_ID,
-        "source-layer": H3_CENTROID_LAYER,
-        paint: {
-          "circle-color": COLOR_EXPRESSION,
-          "circle-opacity": getOpacityExpression(filters.hideNoData),
-          "circle-radius": CIRCLE_RADIUS_EXPRESSION,
-          "circle-stroke-width": 0.4,
-          "circle-stroke-color": "#0f172a"
-        }
-      });
+      if (!map.getLayer("h3-outline")) {
+        map.addLayer({
+          id: "h3-outline",
+          type: "line",
+          source: H3_SOURCE_NAME,
+          "source-layer": H3_HEX_LAYER,
+          paint: {
+            "line-color": "#222",
+            "line-opacity": 0.3,
+            "line-width": 0.5
+          }
+        });
+      }
+
+      if (!map.getLayer("h3-centroids")) {
+        map.addLayer({
+          id: "h3-centroids",
+          type: "circle",
+          source: H3_SOURCE_NAME,
+          "source-layer": H3_CENTROID_LAYER,
+          paint: {
+            "circle-color": COLOR_EXPRESSION,
+            "circle-opacity": CIRCLE_OPACITY_EXPRESSION,
+            "circle-radius": CIRCLE_RADIUS_EXPRESSION,
+            "circle-stroke-width": 0.4,
+            "circle-stroke-color": "#0f172a"
+          }
+        });
+      }
 
       updateFeatureStates(map, dataRef.current);
       setupInteractions(map);
+      map.on("click", (event) => {
+        const features = map.queryRenderedFeatures(event.point, {
+          layers: ["h3-fill", "h3-centroids"]
+        });
+        if (!features.length) {
+          popupRef.current?.remove();
+        }
+      });
+      setTileError(null);
+      setMapLoaded(true);
     });
 
     map.on("error", (event) => {
-      if (event?.error) {
+      if (event?.sourceId === H3_SOURCE_NAME || event?.error) {
         setTileError("Kartendaten konnten nicht geladen werden.");
       }
     });
@@ -163,31 +207,20 @@ export default function MapView({ mapData, filters, metric, activePlaces, loadin
       popupRef.current?.remove();
       map.remove();
       mapRef.current = null;
+      setMapLoaded(false);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) {
+    if (!map || !mapLoaded || !map.isStyleLoaded()) {
       return;
     }
-    const timeout = setTimeout(() => {
+    const timeout = window.setTimeout(() => {
       updateFeatureStates(map, mapData);
     }, 150);
-    return () => clearTimeout(timeout);
-  }, [mapData]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const opacity = getOpacityExpression(filters.hideNoData);
-    if (map.getLayer("h3-fill")) {
-      map.setPaintProperty("h3-fill", "fill-opacity", opacity);
-    }
-    if (map.getLayer("h3-centroids")) {
-      map.setPaintProperty("h3-centroids", "circle-opacity", opacity);
-    }
-  }, [filters.hideNoData]);
+    return () => window.clearTimeout(timeout);
+  }, [mapData, mapLoaded]);
 
   const activePlacesLabel = useMemo(
     () =>
@@ -198,20 +231,25 @@ export default function MapView({ mapData, filters, metric, activePlaces, loadin
   );
 
   const setupInteractions = (map: MapLibreMap) => {
-    map.on("mousemove", "h3-centroids", (event) => handleHover(event));
-    map.on("mousemove", "h3-fill", (event) => handleHover(event));
-    map.on("mouseleave", "h3-fill", () => setTooltip(null));
-    map.on("mouseleave", "h3-centroids", () => setTooltip(null));
-
-    map.on("click", "h3-fill", (event) => handleClick(event));
-    map.on("click", "h3-centroids", (event) => handleClick(event));
+    const layers: Array<"h3-fill" | "h3-centroids"> = ["h3-fill", "h3-centroids"];
+    layers.forEach((layerId) => {
+      map.on("mousemove", layerId, (event) => handleHover(event));
+      map.on("mouseenter", layerId, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", layerId, () => {
+        handleMouseLeave();
+        map.getCanvas().style.cursor = "";
+      });
+      map.on("click", layerId, (event) => handleClick(event));
+    });
   };
 
   const handleHover = (event: MapMouseEvent & maplibregl.EventData) => {
     if (hoverTimeout.current) {
-      clearTimeout(hoverTimeout.current);
+      window.clearTimeout(hoverTimeout.current);
     }
-    hoverTimeout.current = setTimeout(() => {
+    hoverTimeout.current = window.setTimeout(() => {
       const features = event.features ?? [];
       const feature = features[0];
       if (!feature?.id) {
@@ -231,6 +269,13 @@ export default function MapView({ mapData, filters, metric, activePlaces, loadin
         info
       });
     }, 150);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeout.current) {
+      window.clearTimeout(hoverTimeout.current);
+    }
+    setTooltip(null);
   };
 
   const handleClick = (event: MapMouseEvent & maplibregl.EventData) => {
@@ -321,11 +366,26 @@ function updateFeatureStates(map: MapLibreMap, entries: Record<string, HexAggreg
       value: info.value,
       n: info.n,
       hasData: info.hasData ? 1 : 0,
-      passesFilter: info.passesFilter ? 1 : 0
+      passesFilter: info.passesFilter ? 1 : 0,
+      visible: info.visible,
+      opacity: info.hasData
+        ? info.passesFilter
+          ? 0.8
+          : 0.15
+        : info.visible
+          ? 0.1
+          : 0,
+      circleOpacity: info.hasData
+        ? info.passesFilter
+          ? 0.9
+          : 0.2
+        : info.visible
+          ? 0.05
+          : 0
     };
     try {
-      map.setFeatureState({ source: H3_SOURCE_ID, sourceLayer: H3_POLYGON_LAYER, id: hexId }, state);
-      map.setFeatureState({ source: H3_SOURCE_ID, sourceLayer: H3_CENTROID_LAYER, id: hexId }, state);
+      map.setFeatureState({ source: H3_SOURCE_NAME, sourceLayer: H3_HEX_LAYER, id: hexId }, state);
+      map.setFeatureState({ source: H3_SOURCE_NAME, sourceLayer: H3_CENTROID_LAYER, id: hexId }, state);
     } catch (error) {
       if (!featureStateWarningShown) {
         console.warn("Feature state update failed", error);
@@ -333,13 +393,4 @@ function updateFeatureStates(map: MapLibreMap, entries: Record<string, HexAggreg
       }
     }
   }
-}
-
-function getOpacityExpression(hideNoData: boolean): maplibregl.ExpressionSpecification {
-  return [
-    "case",
-    ["==", ["feature-state", "hasData"], 1],
-    ["case", ["==", ["feature-state", "passesFilter"], 1], 0.8, 0.15],
-    hideNoData ? 0 : 0.1
-  ];
 }

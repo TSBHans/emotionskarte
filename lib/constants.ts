@@ -32,9 +32,13 @@ export const METRIC_LABELS: Record<Metric, string> = {
 
 export const DEFAULT_METRIC: Metric = "Happy";
 
-export const PMTILES_BASE_PATH = "pmtiles:///berlin-h3-res9.pmtiles/berlin-h3-res9.pmtiles";
+export const PMTILES_ARCHIVE_PATH = "berlin-h3-res9.pmtiles/berlin-h3-res9.pmtiles";
+export const PMTILES_ARCHIVE = `pmtiles:///${PMTILES_ARCHIVE_PATH}`;
+export const PMTILES_BASE_PATH = PMTILES_ARCHIVE;
 export const H3_SOURCE_ID = "h3";
+export const H3_SOURCE_NAME = H3_SOURCE_ID;
 export const H3_POLYGON_LAYER = "h3";
+export const H3_HEX_LAYER = H3_POLYGON_LAYER;
 export const H3_CENTROID_LAYER = "h3_centroids";
 
 export const MAP_INITIAL_VIEW = {

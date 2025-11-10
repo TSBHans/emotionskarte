@@ -72,7 +72,6 @@ export default function HomePage() {
         <div className="relative flex-1">
           <MapView
             mapData={aggregated}
-            filters={filters}
             metric={metric}
             activePlaces={safePlaces}
             loading={loading}

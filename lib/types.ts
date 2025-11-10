@@ -25,6 +25,7 @@ export type HexAggregated = {
   n: number;
   hasData: boolean;
   passesFilter: boolean;
+  visible: boolean;
   places: Record<Place, { value: number | null; n: number | null }>;
 };
 

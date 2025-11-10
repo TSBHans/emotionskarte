@@ -66,12 +66,15 @@ export function aggregateHexes(
       ? value! >= filters.minValue && value! <= filters.maxValue && nSum >= filters.minParticipants
       : false;
 
+    const visible = hasData ? passesFilter : !filters.hideNoData;
+
     result[hexId] = {
       hexId,
       value,
       n: nSum,
       hasData,
       passesFilter,
+      visible,
       places: placeDetails
     };
   }
