@@ -39,12 +39,11 @@ export default function Sidebar(props: SidebarProps) {
     onFiltersChange({ ...filters, ...patch });
   };
 
-  const togglePlace = (place: Place) => {
-    if (places.includes(place)) {
-      onPlacesChange(places.filter((p) => p !== place));
-    } else {
-      onPlacesChange([...places, place]);
+  const selectPlace = (place: Place) => {
+    if (places[0] === place) {
+      return;
     }
+    onPlacesChange([place]);
   };
 
   const metricOptions = tab === "daten" ? [] : METRIC_GROUPS[tab];
@@ -85,7 +84,7 @@ export default function Sidebar(props: SidebarProps) {
               <header className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-300">Orte</h3>
                 <span className="rounded-full border border-primary-200/40 bg-primary-200/10 px-3 py-1 text-[11px] uppercase tracking-widest text-primary-100">
-                  OR-Logik
+                  OR · ein Ort
                 </span>
               </header>
               <div className="flex flex-wrap gap-2">
@@ -100,7 +99,7 @@ export default function Sidebar(props: SidebarProps) {
                           ? "bg-primary-300 text-night-950 shadow-glow"
                           : "bg-slate-800/60 text-slate-300 hover:bg-slate-800"
                       )}
-                      onClick={() => togglePlace(place)}
+                      onClick={() => selectPlace(place)}
                     >
                       {PLACE_LABELS[place]}
                     </button>
@@ -108,7 +107,7 @@ export default function Sidebar(props: SidebarProps) {
                 })}
               </div>
               <p className="text-xs text-slate-400">
-                Hexagone erscheinen, sobald einer der ausgewählten Orte Daten enthält. Ohne Auswahl werden automatisch alle Orte gezeigt.
+                Hexagone spiegeln den gewählten Ort wider. Es kann immer nur ein Ort aktiv sein.
               </p>
             </section>
 

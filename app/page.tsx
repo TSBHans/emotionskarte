@@ -6,7 +6,7 @@ import Legend from "../components/Legend";
 import MapView from "../components/MapView";
 import Sidebar from "../components/Sidebar";
 import { aggregateHexes, ensureMetricForTab, ensurePlaces, type Filters } from "../lib/aggregation";
-import { DEFAULT_METRIC } from "../lib/constants";
+import { DEFAULT_METRIC, DEFAULT_PLACE, PLACE_LABELS } from "../lib/constants";
 import { loadHexData } from "../lib/dataLoader";
 import type { HexData, Metric, MetricGroupKey, Place } from "../lib/types";
 
@@ -20,7 +20,7 @@ const DEFAULT_FILTERS: Filters = {
 export default function HomePage() {
   const [tab, setTab] = useState<MetricGroupKey>("emotionen");
   const [metric, setMetric] = useState<Metric>(DEFAULT_METRIC);
-  const [places, setPlaces] = useState<Place[]>(["drinnen", "draussen", "oepnv"]);
+  const [places, setPlaces] = useState<Place[]>([DEFAULT_PLACE]);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [rawData, setRawData] = useState<Record<string, HexData>>({});
   const [loading, setLoading] = useState(true);
@@ -109,9 +109,9 @@ export default function HomePage() {
                     <p className="text-[11px] uppercase tracking-widest text-slate-400">Teilnehmer:innen</p>
                     <p className="mt-1 text-lg font-semibold text-primary-50">≥ {filters.minParticipants}</p>
                   </div>
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-primary-200/50 bg-slate-900/60 text-[11px] uppercase tracking-wide text-primary-100">
-                    {safePlaces.length === 3 ? "Alle" : `${safePlaces.length}`}
-                    <span className="sr-only">aktive Orte</span>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-primary-200/50 bg-slate-900/60 text-center text-[11px] uppercase tracking-wide text-primary-100">
+                    {safePlaces.length ? PLACE_LABELS[safePlaces[0]] : "Ort"}
+                    <span className="sr-only">aktiver Ort</span>
                   </div>
                 </div>
               </div>

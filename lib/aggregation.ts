@@ -1,4 +1,4 @@
-import { METRIC_GROUPS, PLACE_LABELS } from "./constants";
+import { DEFAULT_PLACE, METRIC_GROUPS, PLACE_LABELS } from "./constants";
 import type { HexAggregated, HexData, Metric, MetricGroupKey, Place } from "./types";
 
 export type Filters = {
@@ -10,10 +10,11 @@ export type Filters = {
 
 export function ensurePlaces(selected: Place[]): Place[] {
   const unique = Array.from(new Set(selected));
+  const fallback = DEFAULT_PLACE;
   if (unique.length === 0) {
-    return ["drinnen", "draussen", "oepnv"];
+    return [fallback];
   }
-  return unique;
+  return [unique[0]];
 }
 
 export function ensureMetricForTab(metric: Metric, tab: MetricGroupKey): Metric {
@@ -91,7 +92,6 @@ function average(values: number[]): number {
 }
 
 export function formatPlacesList(places: Place[]): string {
-  return ensurePlaces(places)
-    .map((place) => PLACE_LABELS[place])
-    .join(", ");
+  const [activePlace] = ensurePlaces(places);
+  return PLACE_LABELS[activePlace];
 }

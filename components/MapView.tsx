@@ -222,13 +222,12 @@ export default function MapView({ mapData, metric, activePlaces, loading, error 
     return () => window.clearTimeout(timeout);
   }, [mapData, mapLoaded]);
 
-  const activePlacesLabel = useMemo(
-    () =>
-      activePlaces
-        .map((place) => PLACE_LABELS[place])
-        .join(", ") || "Alle Orte",
-    [activePlaces]
-  );
+  const activePlacesLabel = useMemo(() => {
+    if (!activePlaces.length) {
+      return "Ort";
+    }
+    return PLACE_LABELS[activePlaces[0]];
+  }, [activePlaces]);
 
   const setupInteractions = (map: MapLibreMap) => {
     const layers: Array<"h3-fill" | "h3-centroids"> = ["h3-fill", "h3-centroids"];
